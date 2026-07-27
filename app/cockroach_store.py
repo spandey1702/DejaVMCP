@@ -44,10 +44,73 @@ class CockroachStore:
         return {"status": "ok", "schema": str(schema_path)}
 
     def create_agent(self, payload: AgentCreate) -> AgentRead:
-        return AgentRead.model_validate(payload.model_dump())
+        if not self.dsn:
+            return AgentRead.model_validate(payload.model_dump())
+
+        connection = self.get_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO agents (agent_key, name, role, status)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING agent_id, created_at, updated_at
+                    """,
+                    (payload.agent_key, payload.name, payload.role, payload.status.value),
+                )
+                row = cursor.fetchone()
+        finally:
+            connection.close()
+
+        if not row:
+            raise RuntimeError("Agent insert did not return a row")
+        return AgentRead(
+            agent_id=row[0],
+            agent_key=payload.agent_key,
+            name=payload.name,
+            role=payload.role,
+            status=payload.status,
+            created_at=row[1],
+            updated_at=row[2],
+        )
 
     def create_task(self, payload: TaskCreate) -> TaskRead:
-        return TaskRead.model_validate(payload.model_dump())
+        if not self.dsn:
+            return TaskRead.model_validate(payload.model_dump())
+
+        connection = self.get_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO tasks (task_key, title, description, status, created_by_agent_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING task_id, created_at, updated_at
+                    """,
+                    (
+                        payload.task_key,
+                        payload.title,
+                        payload.description,
+                        payload.status.value,
+                        payload.created_by_agent_id,
+                    ),
+                )
+                row = cursor.fetchone()
+        finally:
+            connection.close()
+
+        if not row:
+            raise RuntimeError("Task insert did not return a row")
+        return TaskRead(
+            task_id=row[0],
+            task_key=payload.task_key,
+            title=payload.title,
+            description=payload.description,
+            status=payload.status,
+            created_by_agent_id=payload.created_by_agent_id,
+            created_at=row[1],
+            updated_at=row[2],
+        )
 
     def create_claim(self, payload: TaskClaimCreate) -> TaskClaimRead:
         return TaskClaimRead.model_validate(payload.model_dump())
