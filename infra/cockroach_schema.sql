@@ -65,6 +65,20 @@ CREATE TABLE IF NOT EXISTS task_events (
     event_payload JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT current_timestamp()
 );
+CREATE TABLE IF NOT EXISTS task_decisions (
+    decision_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id UUID NOT NULL REFERENCES tasks(task_id) ON DELETE CASCADE,
+    agent_id UUID NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    decision_text STRING NOT NULL,
+    reason STRING,
+    state STRING NOT NULL DEFAULT 'proposed',
+    decision_rank INT NOT NULL DEFAULT 0,
+    embedding VECTOR(1024),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT current_timestamp()
+);
+
+CREATE VECTOR INDEX IF NOT EXISTS task_decisions_embedding_idx
+    ON task_decisions (embedding vector_cosine_ops);
 
 CREATE INDEX IF NOT EXISTS task_events_task_idx ON task_events(task_id);
 CREATE INDEX IF NOT EXISTS task_events_created_at_idx ON task_events(created_at DESC);
